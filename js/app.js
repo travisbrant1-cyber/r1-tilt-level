@@ -81,9 +81,48 @@
   window.addEventListener('sideClick', autoZero);
   window.addEventListener('longPressStart', resetCalibration);
 
-  function startRealSensor() {
+  function waitForSensors(maxWaitMs, intervalMs) {
+    return new Promise(function (resolve) {
+      var elapsed = 0;
+      (function poll() {
+        var ready = typeof window.creationSensors !== 'undefined' &&
+          window.creationSensors.accelerometer &&
+          typeof window.creationSensors.accelerometer.start === 'function';
+        if (ready) { resolve(true); return; }
+        elapsed += intervalMs;
+        if (elapsed >= maxWaitMs) { resolve(false); return; }
+        setTimeout(poll, intervalMs);
+      })();
+    });
+  }
+
+  function tryStartReal() {
+    var accel = window.creationSensors.accelerometer;
+    var gotData = false;
+
+    function onData(data) {
+      gotData = true;
+      handleAccelData(data);
+    }
+
+    try {
+      accel.start(onData, { frequency: 30 });
+    } catch (e) {
+      startSimFallback();
+      return;
+    }
+
     statusDot.classList.add('live');
-    window.creationSensors.accelerometer.start(handleAccelData, { frequency: 30 });
+
+    // Bridge can exist without actually delivering data (older builds,
+    // permission not granted, etc.) - confirm data actually arrives.
+    setTimeout(function () {
+      if (!gotData) {
+        statusDot.classList.remove('live');
+        try { accel.stop(); } catch (e) {}
+        startSimFallback();
+      }
+    }, 1500);
   }
 
   function startSimFallback() {
@@ -126,24 +165,13 @@
   }
 
   function init() {
-    var hasSensors = typeof window.creationSensors !== 'undefined' &&
-      window.creationSensors.accelerometer;
-
-    if (hasSensors) {
-      if (window.creationSensors.accelerometer.isAvailable) {
-        window.creationSensors.accelerometer.isAvailable().then(function (available) {
-          if (available) {
-            startRealSensor();
-          } else {
-            startSimFallback();
-          }
-        }).catch(startSimFallback);
+    waitForSensors(2000, 100).then(function (found) {
+      if (found) {
+        tryStartReal();
       } else {
-        startRealSensor();
+        startSimFallback();
       }
-    } else {
-      startSimFallback();
-    }
+    });
 
     render();
   }
