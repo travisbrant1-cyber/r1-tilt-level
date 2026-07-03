@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=240, initial-scale=1.0, user-scalable=no">
+    <title>Tilt Level</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Tilt Level</h1>
+            <div class="status-dot" id="statusDot" title="Sensor status"></div>
+        </header>
+
+        <main>
+            <div class="level-widget">
+                <div class="level-ring">
+                    <div class="level-crosshair-h"></div>
+                    <div class="level-crosshair-v"></div>
+                    <div class="level-bubble" id="bubble"></div>
+                </div>
+            </div>
+
+            <div class="readout">
+                <div class="readout-row">
+                    <span class="readout-label">Angle</span>
+                    <span class="readout-value" id="angleValue">0.0&deg;</span>
+                </div>
+                <div class="readout-row">
+                    <span class="readout-label">X</span>
+                    <span class="readout-value" id="xValue">0.00</span>
+                </div>
+                <div class="readout-row">
+                    <span class="readout-label">Y</span>
+                    <span class="readout-value" id="yValue">0.00</span>
+                </div>
+            </div>
+
+            <div class="hint" id="hint">Scroll: fine calibrate &middot; Click PTT: auto-zero &middot; Hold PTT: reset</div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
