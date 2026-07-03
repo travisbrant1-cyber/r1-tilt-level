@@ -7,20 +7,51 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div id="app">
+    <div id="app" data-theme="terminal" data-mode="dark">
         <header>
-            <h1>Tilt Level</h1>
-            <div class="status-dot" id="statusDot" title="Sensor status"></div>
+            <h1 id="themeName">Terminal</h1>
+            <div class="header-controls">
+                <button id="modeToggle" class="icon-btn" aria-label="Toggle light/dark mode">&#9789;</button>
+                <div class="status-dot" id="statusDot" title="Sensor status"></div>
+            </div>
         </header>
 
         <main>
-            <div class="level-widget">
-                <div class="level-ring">
-                    <div class="level-crosshair-h"></div>
-                    <div class="level-crosshair-v"></div>
-                    <div class="level-bubble" id="bubble"></div>
+            <div class="viz-area" id="vizArea">
+                <div class="viz viz-bubble active" id="vizBubble">
+                    <div class="level-ring">
+                        <div class="level-crosshair-h"></div>
+                        <div class="level-crosshair-v"></div>
+                        <div class="level-bubble" id="bubble"></div>
+                    </div>
+                </div>
+
+                <div class="viz viz-crosshair" id="vizCrosshair">
+                    <div class="grid-box">
+                        <div class="grid-line grid-line-h"></div>
+                        <div class="grid-line grid-line-v"></div>
+                        <div class="grid-dot" id="gridDot"></div>
+                    </div>
+                </div>
+
+                <div class="viz viz-gauge" id="vizGauge">
+                    <div class="gauge-face">
+                        <div class="gauge-tick gauge-tick-n"></div>
+                        <div class="gauge-tick gauge-tick-e"></div>
+                        <div class="gauge-tick gauge-tick-s"></div>
+                        <div class="gauge-tick gauge-tick-w"></div>
+                        <div class="gauge-needle" id="gaugeNeedle"></div>
+                        <div class="gauge-center"></div>
+                    </div>
+                </div>
+
+                <div class="viz viz-numeric" id="vizNumeric">
+                    <div class="numeric-hero" id="numericHero">0.0&deg;</div>
+                    <div class="numeric-sub" id="numericSub">X 0.00 &middot; Y 0.00</div>
                 </div>
             </div>
+
+            <div class="status-text" id="levelStatus"></div>
 
             <div class="readout">
                 <div class="readout-row">
@@ -37,7 +68,7 @@
                 </div>
             </div>
 
-            <div class="hint" id="hint">Scroll: fine calibrate &middot; Click PTT: auto-zero &middot; Hold PTT: reset</div>
+            <div class="hint" id="hint">Scroll: theme &middot; Tap: viz mode &middot; Click PTT: save &middot; Hold PTT: zero</div>
         </main>
     </div>
 
