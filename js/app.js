@@ -183,6 +183,21 @@
     } catch (e) {}
   }
 
+  // Same story as AudioContext: many WebViews only honor navigator.vibrate()
+  // when it's called from a real user gesture. Our actual vibrate() calls
+  // mostly happen from render(), which is driven by the accelerometer
+  // callback — no gesture attached — so without this the API stays silently
+  // blocked until something calls it from a real click. Fire one
+  // imperceptible (1ms) vibration from every real gesture handler so it's
+  // unlocked before it's ever needed for real.
+  var vibrationUnlocked = false;
+
+  function ensureVibration() {
+    if (vibrationUnlocked) return;
+    vibrationUnlocked = true;
+    try { navigator.vibrate && navigator.vibrate(1); } catch (e) {}
+  }
+
   function vibrate(pattern) {
     if (!vibOn) return;
     try { navigator.vibrate && navigator.vibrate(pattern); } catch (e) {}
@@ -300,12 +315,13 @@
   var suppressNextClick = false;
   vizArea.addEventListener('click', function () {
     ensureAudio();
+    ensureVibration();
     if (suppressNextClick) { suppressNextClick = false; return; }
     cycleViz(1);
   });
-  modeToggle.addEventListener('click', function () { ensureAudio(); toggleMode(); });
-  vibToggle.addEventListener('click', function () { ensureAudio(); toggleVib(); });
-  soundToggle.addEventListener('click', function () { ensureAudio(); toggleSound(); });
+  modeToggle.addEventListener('click', function () { ensureAudio(); ensureVibration(); toggleMode(); });
+  vibToggle.addEventListener('click', function () { ensureAudio(); ensureVibration(); toggleVib(); });
+  soundToggle.addEventListener('click', function () { ensureAudio(); ensureVibration(); toggleSound(); });
 
   // ---- Sensor detection: wait for the bridge, then verify it actually delivers data ----
   function waitForSensors(maxWaitMs, intervalMs) {
@@ -366,6 +382,7 @@
 
     vizArea.addEventListener('mousedown', function (e) {
       ensureAudio();
+      ensureVibration();
       dragging = true;
       updateFromPointer(e.clientX, e.clientY);
     });
@@ -385,6 +402,7 @@
 
     window.addEventListener('keydown', function (e) {
       ensureAudio();
+      ensureVibration();
       if (e.key === 'v' || e.key === 'V') cycleViz(1);
       if (e.key === 'm' || e.key === 'M') toggleMode();
       if (e.key === 's' || e.key === 'S') toggleSound();
