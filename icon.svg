@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#0c1826"/>
+      <stop offset="100%" stop-color="#03060a"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" rx="54" fill="url(#bg)"/>
+  <rect x="6" y="6" width="244" height="244" rx="50" fill="none" stroke="#4fd8ff" stroke-width="9"/>
+
+  <!-- HUD corner brackets -->
+  <g stroke="#4fd8ff" stroke-width="6" stroke-linecap="round" opacity="0.85">
+    <path d="M34,62 L34,34 L62,34"/>
+    <path d="M194,34 L222,34 L222,62"/>
+    <path d="M34,194 L34,222 L62,222"/>
+    <path d="M222,194 L222,222 L194,222"/>
+  </g>
+
+  <!-- Level ring + crosshair -->
+  <circle cx="128" cy="128" r="66" fill="#0a121c" stroke="#4fd8ff" stroke-width="9" filter="url(#glow)"/>
+  <line x1="62" y1="128" x2="194" y2="128" stroke="#1c3f59" stroke-width="4"/>
+  <line x1="128" y1="62" x2="128" y2="194" stroke="#1c3f59" stroke-width="4"/>
+
+  <!-- Bubble (off-level, amber) -->
+  <circle cx="152" cy="104" r="23" fill="#ffb020" filter="url(#glow)"/>
+  <circle cx="144" cy="96" r="8" fill="#ffe1a3" opacity="0.75"/>
+</svg>
