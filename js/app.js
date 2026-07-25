@@ -57,9 +57,12 @@
     return Promise.resolve();
   }
 
+  // Vibration is intentionally not persisted: it defaults off every launch
+  // (see vibOn declaration) regardless of what an older install may have
+  // saved, since a stale "on" value would make the button look broken.
   function savePrefs() {
     storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({
-      vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn
+      vizIndex: vizIndex, mode: mode, soundOn: soundOn
     })));
   }
 
@@ -71,7 +74,6 @@
         if (typeof prefs.vizIndex === 'number') vizIndex = clamp(prefs.vizIndex, 0, VIZ_MODES.length - 1);
         if (prefs.mode === 'light' || prefs.mode === 'dark') mode = prefs.mode;
         if (typeof prefs.soundOn === 'boolean') soundOn = prefs.soundOn;
-        if (typeof prefs.vibOn === 'boolean') vibOn = prefs.vibOn;
       } catch (e) {}
     });
   }
