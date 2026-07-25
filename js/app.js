@@ -1,18 +1,17 @@
 (function () {
   'use strict';
 
-  var THEMES = ['terminal', 'toy', 'analog', 'mission'];
-  var THEME_NAMES = { terminal: 'Terminal', toy: 'Toy', analog: 'Analog', mission: 'Mission' };
   var VIZ_MODES = ['bubble', 'crosshair', 'gauge', 'numeric'];
 
   var LEVEL_THRESHOLD = 0.05;
+  var PROXIMITY_RANGE = 0.35;
   var STORAGE_KEY_PREFS = 'tilt_level_prefs';
   var STORAGE_KEY_LOG = 'tilt_level_measurements';
 
   var app = document.getElementById('app');
-  var themeName = document.getElementById('themeName');
   var modeToggle = document.getElementById('modeToggle');
-  var statusDot = document.getElementById('statusDot');
+  var vibToggle = document.getElementById('vibToggle');
+  var soundToggle = document.getElementById('soundToggle');
   var vizArea = document.getElementById('vizArea');
   var bubble = document.getElementById('bubble');
   var gridDot = document.getElementById('gridDot');
@@ -29,9 +28,14 @@
   var rawY = 0;
   var calX = 0;
   var calY = 0;
-  var themeIndex = 0;
-  var vizIndex = 0;
+  var vizIndex = VIZ_MODES.indexOf('crosshair');
   var mode = 'dark';
+  var soundOn = true;
+  var vibOn = true;
+  var lastProximity = -1;
+  var currentProximity = 0;
+  var currentOnLevel = false;
+  var wasOnLevel = false;
 
   var usingRealStorage = typeof window.creationStorage !== 'undefined';
 
@@ -51,7 +55,7 @@
   }
 
   function savePrefs() {
-    storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({ themeIndex: themeIndex, vizIndex: vizIndex, mode: mode })));
+    storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({ vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn })));
   }
 
   function loadPrefs() {
@@ -59,32 +63,43 @@
       if (!raw) return;
       try {
         var prefs = JSON.parse(atob(raw));
-        if (typeof prefs.themeIndex === 'number') themeIndex = clamp(prefs.themeIndex, 0, THEMES.length - 1);
         if (typeof prefs.vizIndex === 'number') vizIndex = clamp(prefs.vizIndex, 0, VIZ_MODES.length - 1);
         if (prefs.mode === 'light' || prefs.mode === 'dark') mode = prefs.mode;
+        if (typeof prefs.soundOn === 'boolean') soundOn = prefs.soundOn;
+        if (typeof prefs.vibOn === 'boolean') vibOn = prefs.vibOn;
       } catch (e) {}
     });
   }
 
-  // ---- Theme / viz mode / light-dark ----
-  function applyTheme() {
-    var id = THEMES[themeIndex];
-    app.setAttribute('data-theme', id);
+  // ---- Viz mode / light-dark ----
+  function applyMode() {
     app.setAttribute('data-mode', mode);
-    themeName.textContent = THEME_NAMES[id];
     modeToggle.innerHTML = mode === 'dark' ? '&#9789;' : '&#9788;';
-  }
-
-  function cycleTheme(delta) {
-    themeIndex = (themeIndex + delta + THEMES.length) % THEMES.length;
-    applyTheme();
-    savePrefs();
   }
 
   function toggleMode() {
     mode = mode === 'dark' ? 'light' : 'dark';
-    applyTheme();
+    applyMode();
     savePrefs();
+  }
+
+  function applySignalToggles() {
+    vibToggle.classList.toggle('off', !vibOn);
+    soundToggle.classList.toggle('off', !soundOn);
+  }
+
+  function toggleVib() {
+    vibOn = !vibOn;
+    applySignalToggles();
+    savePrefs();
+    if (vibOn) vibrate(30);
+  }
+
+  function toggleSound() {
+    soundOn = !soundOn;
+    applySignalToggles();
+    savePrefs();
+    if (soundOn) beep(700, 80, 0.12);
   }
 
   function applyViz() {
@@ -94,8 +109,64 @@
     render();
   }
 
-  function cycleViz() {
-    vizIndex = (vizIndex + 1) % VIZ_MODES.length;
+  // ---- Audio / haptics ----
+  // AudioContext must be created/resumed from a real user gesture (browser autoplay
+  // policy), so this is only called from actual click handlers, never from the
+  // synthetic scrollUp/scrollDown/sideClick hardware events.
+  var audioCtx = null;
+
+  function ensureAudio() {
+    if (audioCtx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { audioCtx = new AC(); } catch (e) {}
+  }
+
+  function beep(freq, durMs, vol) {
+    if (!soundOn || !audioCtx) return;
+    try {
+      var t0 = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(vol, t0 + 0.008);
+      gain.gain.linearRampToValueAtTime(0, t0 + durMs / 1000);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + durMs / 1000 + 0.02);
+    } catch (e) {}
+  }
+
+  function vibrate(pattern) {
+    if (!vibOn) return;
+    try { navigator.vibrate && navigator.vibrate(pattern); } catch (e) {}
+  }
+
+  // Self-scheduling beep loop: reads the latest proximity/onLevel each tick rather
+  // than piggybacking on render(), so its cadence doesn't depend on how often the
+  // accelerometer (or simulated drag) happens to fire.
+  var BEEP_INTERVAL_MAX = 850;
+  var BEEP_INTERVAL_MIN = 130;
+  var BEEP_PROXIMITY_FLOOR = 0.04;
+
+  function scheduleBeep() {
+    setTimeout(function () {
+      if (soundOn && !currentOnLevel && currentProximity > BEEP_PROXIMITY_FLOOR) {
+        var freq = 320 + currentProximity * 620;
+        beep(freq, 70, 0.1);
+      }
+      scheduleBeep();
+    }, currentProximity > BEEP_PROXIMITY_FLOOR
+      ? BEEP_INTERVAL_MAX - currentProximity * (BEEP_INTERVAL_MAX - BEEP_INTERVAL_MIN)
+      : 250);
+  }
+  scheduleBeep();
+
+  function cycleViz(delta) {
+    vizIndex = (vizIndex + delta + VIZ_MODES.length) % VIZ_MODES.length;
     applyViz();
     savePrefs();
   }
@@ -108,6 +179,20 @@
     var onLevel = magnitude < LEVEL_THRESHOLD;
     // tiltX/tiltY approximate the sine of roll/pitch, so asin recovers the angle.
     var angleDeg = Math.asin(magnitude) * 180 / Math.PI;
+
+    // Proximity glow: 0 outside PROXIMITY_RANGE, ramps to 1 as magnitude approaches level.
+    var proximity = onLevel ? 1 : clamp(1 - magnitude / PROXIMITY_RANGE, 0, 1);
+    if (Math.abs(proximity - lastProximity) >= 0.02) {
+      app.style.setProperty('--proximity', proximity.toFixed(2));
+      lastProximity = proximity;
+    }
+    currentProximity = proximity;
+    currentOnLevel = onLevel;
+    if (onLevel && !wasOnLevel) {
+      beep(1300, 140, 0.15);
+      vibrate(35);
+    }
+    wasOnLevel = onLevel;
 
     angleValue.innerHTML = angleDeg.toFixed(1) + '&deg;';
     xValue.textContent = adjX.toFixed(2);
@@ -150,14 +235,6 @@
     calX = -rawX;
     calY = -rawY;
     render();
-    flashStatus();
-  }
-
-  function flashStatus() {
-    statusDot.style.transform = 'scale(1.4)';
-    setTimeout(function () {
-      statusDot.style.transform = 'scale(1)';
-    }, 150);
   }
 
   function saveMeasurement() {
@@ -185,17 +262,20 @@
   }
 
   // ---- Hardware event wiring ----
-  window.addEventListener('scrollUp', function () { cycleTheme(-1); });
-  window.addEventListener('scrollDown', function () { cycleTheme(1); });
+  window.addEventListener('scrollUp', function () { cycleViz(-1); });
+  window.addEventListener('scrollDown', function () { cycleViz(1); });
   window.addEventListener('sideClick', saveMeasurement);
   window.addEventListener('longPressStart', autoZero);
 
   var suppressNextClick = false;
   vizArea.addEventListener('click', function () {
+    ensureAudio();
     if (suppressNextClick) { suppressNextClick = false; return; }
-    cycleViz();
+    cycleViz(1);
   });
-  modeToggle.addEventListener('click', toggleMode);
+  modeToggle.addEventListener('click', function () { ensureAudio(); toggleMode(); });
+  vibToggle.addEventListener('click', function () { ensureAudio(); toggleVib(); });
+  soundToggle.addEventListener('click', function () { ensureAudio(); toggleSound(); });
 
   // ---- Sensor detection: wait for the bridge, then verify it actually delivers data ----
   function waitForSensors(maxWaitMs, intervalMs) {
@@ -229,11 +309,8 @@
       return;
     }
 
-    statusDot.classList.add('live');
-
     setTimeout(function () {
       if (!gotData) {
-        statusDot.classList.remove('live');
         try { accel.stop(); } catch (e) {}
         startSimFallback();
       }
@@ -241,8 +318,7 @@
   }
 
   function startSimFallback() {
-    statusDot.classList.add('sim');
-    hint.innerHTML = 'SIMULATED &middot; drag to tilt &middot; wheel/T = theme &middot; V = viz &middot; M = mode &middot; C/R = PTT';
+    hint.innerHTML = 'SIMULATED &middot; drag to tilt &middot; wheel/V = view &middot; M/S/B = mode/sound/vib &middot; C/R = PTT';
 
     var dragging = false;
 
@@ -259,6 +335,7 @@
     }
 
     vizArea.addEventListener('mousedown', function (e) {
+      ensureAudio();
       dragging = true;
       updateFromPointer(e.clientX, e.clientY);
     });
@@ -277,9 +354,11 @@
     }, { passive: true });
 
     window.addEventListener('keydown', function (e) {
-      if (e.key === 't' || e.key === 'T') cycleTheme(1);
-      if (e.key === 'v' || e.key === 'V') cycleViz();
+      ensureAudio();
+      if (e.key === 'v' || e.key === 'V') cycleViz(1);
       if (e.key === 'm' || e.key === 'M') toggleMode();
+      if (e.key === 's' || e.key === 'S') toggleSound();
+      if (e.key === 'b' || e.key === 'B') toggleVib();
       if (e.key === 'c' || e.key === 'C') window.dispatchEvent(new Event('sideClick'));
       if (e.key === 'r' || e.key === 'R') window.dispatchEvent(new Event('longPressStart'));
     });
@@ -287,7 +366,8 @@
 
   // ---- Init ----
   loadPrefs().then(function () {
-    applyTheme();
+    applyMode();
+    applySignalToggles();
     applyViz();
 
     waitForSensors(2000, 100).then(function (found) {
