@@ -33,7 +33,7 @@
   var vizIndex = VIZ_MODES.indexOf('crosshair');
   var mode = 'dark';
   var soundOn = true;
-  var vibOn = true;
+  var vibOn = false;
   var levelMode = 'plumb';
   var lastProximity = -1;
   var currentProximity = 0;
