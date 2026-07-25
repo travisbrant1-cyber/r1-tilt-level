@@ -5,14 +5,15 @@
 
   var LEVEL_THRESHOLD = 0.05;
   var PROXIMITY_RANGE = 0.35;
+  var FLAT_Z_THRESHOLD = 0.6;
   var STORAGE_KEY_PREFS = 'tilt_level_prefs';
-  var STORAGE_KEY_LOG = 'tilt_level_measurements';
 
   var app = document.getElementById('app');
   var modeToggle = document.getElementById('modeToggle');
   var vibToggle = document.getElementById('vibToggle');
   var soundToggle = document.getElementById('soundToggle');
   var vizArea = document.getElementById('vizArea');
+  var modeFlash = document.getElementById('modeFlash');
   var bubble = document.getElementById('bubble');
   var gridDot = document.getElementById('gridDot');
   var gaugeNeedle = document.getElementById('gaugeNeedle');
@@ -26,12 +27,15 @@
 
   var rawX = 0;
   var rawY = 0;
+  var rawZ = 1;
   var calX = 0;
   var calY = 0;
   var vizIndex = VIZ_MODES.indexOf('crosshair');
   var mode = 'dark';
   var soundOn = true;
   var vibOn = true;
+  var levelMode = 'plumb';
+  var standingMode = 'horizontal';
   var lastProximity = -1;
   var currentProximity = 0;
   var currentOnLevel = false;
@@ -55,7 +59,9 @@
   }
 
   function savePrefs() {
-    storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({ vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn })));
+    storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({
+      vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn, standingMode: standingMode
+    })));
   }
 
   function loadPrefs() {
@@ -67,6 +73,7 @@
         if (prefs.mode === 'light' || prefs.mode === 'dark') mode = prefs.mode;
         if (typeof prefs.soundOn === 'boolean') soundOn = prefs.soundOn;
         if (typeof prefs.vibOn === 'boolean') vibOn = prefs.vibOn;
+        if (prefs.standingMode === 'horizontal' || prefs.standingMode === 'vertical') standingMode = prefs.standingMode;
       } catch (e) {}
     });
   }
@@ -81,6 +88,50 @@
     mode = mode === 'dark' ? 'light' : 'dark';
     applyMode();
     savePrefs();
+  }
+
+  // ---- Level mode: plumb (flat, auto-detected) vs horizontal/vertical
+  // (standing on an edge, picked with PTT click) ----
+  var MODE_FLASH_LABELS = { plumb: 'Plumb', horizontal: 'Horizontal', vertical: 'Vertical' };
+  var MODE_FLASH_MS = 650;
+  var modeFlashTimer = null;
+
+  function applyLevelMode() {
+    app.setAttribute('data-level-mode', levelMode);
+  }
+
+  // Brief green flash (text + reticle highlight) plus a sound/vibration cue,
+  // so a mode change is unmistakable even with no persistent label on screen.
+  // Sound/vibration respect their own toggles via beep()/vibrate() themselves.
+  function flashModeSwitch() {
+    modeFlash.textContent = MODE_FLASH_LABELS[levelMode];
+    modeFlash.classList.remove('show');
+    // Force a reflow so re-adding the class restarts the animation even if
+    // a previous flash is still mid-fade.
+    void modeFlash.offsetWidth;
+    modeFlash.classList.add('show');
+    app.classList.add('mode-switching');
+    beep(560, 90, 0.14);
+    vibrate(55);
+    clearTimeout(modeFlashTimer);
+    modeFlashTimer = setTimeout(function () {
+      app.classList.remove('mode-switching');
+    }, MODE_FLASH_MS);
+  }
+
+  function detectLevelMode() {
+    var next = Math.abs(rawZ) >= FLAT_Z_THRESHOLD ? 'plumb' : standingMode;
+    if (next !== levelMode) {
+      levelMode = next;
+      applyLevelMode();
+      flashModeSwitch();
+    }
+  }
+
+  function toggleStandingMode() {
+    standingMode = standingMode === 'horizontal' ? 'vertical' : 'horizontal';
+    savePrefs();
+    render(); // render() calls detectLevelMode() internally, which flashes if the mode actually changed
   }
 
   function applySignalToggles() {
@@ -173,8 +224,22 @@
 
   // ---- Render ----
   function render() {
-    var adjX = clamp(rawX + calX, -1, 1);
-    var adjY = clamp(rawY + calY, -1, 1);
+    detectLevelMode();
+
+    // Plumb (flat) reads both axes. Horizontal/vertical (standing on an edge)
+    // are single-axis readings — the other axis is pinned to 0 rather than
+    // picking up a stale calibration offset from a different orientation.
+    var adjX, adjY;
+    if (levelMode === 'horizontal') {
+      adjX = clamp(rawX + calX, -1, 1);
+      adjY = 0;
+    } else if (levelMode === 'vertical') {
+      adjX = 0;
+      adjY = clamp(rawY + calY, -1, 1);
+    } else {
+      adjX = clamp(rawX + calX, -1, 1);
+      adjY = clamp(rawY + calY, -1, 1);
+    }
     var magnitude = clamp(Math.sqrt(adjX * adjX + adjY * adjY), 0, 1);
     var onLevel = magnitude < LEVEL_THRESHOLD;
     // tiltX/tiltY approximate the sine of roll/pitch, so asin recovers the angle.
@@ -228,6 +293,7 @@
     if (!data) return;
     rawX = (data.tiltX !== undefined) ? data.tiltX : (data.x !== undefined ? data.x : rawX);
     rawY = (data.tiltY !== undefined) ? data.tiltY : (data.y !== undefined ? data.y : rawY);
+    rawZ = (data.tiltZ !== undefined) ? data.tiltZ : (data.z !== undefined ? data.z : rawZ);
     render();
   }
 
@@ -237,34 +303,10 @@
     render();
   }
 
-  function saveMeasurement() {
-    var adjX = clamp(rawX + calX, -1, 1);
-    var adjY = clamp(rawY + calY, -1, 1);
-    var magnitude = clamp(Math.sqrt(adjX * adjX + adjY * adjY), 0, 1);
-    var angleDeg = Math.asin(magnitude) * 180 / Math.PI;
-    var entry = { x: Number(adjX.toFixed(3)), y: Number(adjY.toFixed(3)), angle: Number(angleDeg.toFixed(1)), ts: Date.now() };
-
-    storageGet(STORAGE_KEY_LOG).then(function (raw) {
-      var log = [];
-      if (raw) {
-        try { log = JSON.parse(atob(raw)); } catch (e) { log = []; }
-      }
-      log.unshift(entry);
-      if (log.length > 50) log.length = 50;
-      storageSet(STORAGE_KEY_LOG, btoa(JSON.stringify(log)));
-    });
-
-    var prevText = levelStatus.textContent;
-    levelStatus.textContent = 'SAVED';
-    setTimeout(function () {
-      levelStatus.textContent = prevText;
-    }, 700);
-  }
-
   // ---- Hardware event wiring ----
   window.addEventListener('scrollUp', function () { cycleViz(-1); });
   window.addEventListener('scrollDown', function () { cycleViz(1); });
-  window.addEventListener('sideClick', saveMeasurement);
+  window.addEventListener('sideClick', toggleStandingMode);
   window.addEventListener('longPressStart', autoZero);
 
   var suppressNextClick = false;
@@ -318,7 +360,7 @@
   }
 
   function startSimFallback() {
-    hint.innerHTML = 'SIMULATED &middot; drag to tilt &middot; wheel/V = view &middot; M/S/B = mode/sound/vib &middot; C/R = PTT';
+    hint.innerHTML = 'SIMULATED &middot; drag=tilt &middot; F=flat/stand &middot; C=PTT click &middot; R=PTT hold';
 
     var dragging = false;
 
@@ -361,6 +403,10 @@
       if (e.key === 'b' || e.key === 'B') toggleVib();
       if (e.key === 'c' || e.key === 'C') window.dispatchEvent(new Event('sideClick'));
       if (e.key === 'r' || e.key === 'R') window.dispatchEvent(new Event('longPressStart'));
+      if (e.key === 'f' || e.key === 'F') {
+        rawZ = Math.abs(rawZ) >= FLAT_Z_THRESHOLD ? 0 : 1;
+        render();
+      }
     });
   }
 
@@ -368,6 +414,7 @@
   loadPrefs().then(function () {
     applyMode();
     applySignalToggles();
+    applyLevelMode();
     applyViz();
 
     waitForSensors(2000, 100).then(function (found) {

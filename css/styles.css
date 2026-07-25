@@ -158,6 +158,88 @@ main {
     display: flex;
 }
 
+/* Transient mode-switch flash: brief green text overlay, no persistent layout space. */
+.mode-flash {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 6;
+    pointer-events: none;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #4aff7a;
+    text-shadow: 0 0 10px rgba(74, 255, 122, 0.75), 0 0 22px rgba(74, 255, 122, 0.4);
+    opacity: 0;
+}
+.mode-flash.show {
+    animation: modeFlashPop 0.65s ease-out;
+}
+@keyframes modeFlashPop {
+    0% { opacity: 0; transform: scale(0.88); }
+    18% { opacity: 1; transform: scale(1.08); }
+    35% { transform: scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Single-axis modes (standing on an edge) strongly dim the crosshair/ticks on
+   the axis that isn't being measured, and light up the active axis with an
+   accent glow, so the reticle itself shows which way the level is reading. */
+#app[data-level-mode="horizontal"] .level-crosshair-v,
+#app[data-level-mode="horizontal"] .grid-line-v,
+#app[data-level-mode="horizontal"] .gauge-tick-n,
+#app[data-level-mode="horizontal"] .gauge-tick-s {
+    opacity: 0.08;
+}
+#app[data-level-mode="vertical"] .level-crosshair-h,
+#app[data-level-mode="vertical"] .grid-line-h,
+#app[data-level-mode="vertical"] .gauge-tick-e,
+#app[data-level-mode="vertical"] .gauge-tick-w {
+    opacity: 0.08;
+}
+#app[data-level-mode="horizontal"] .level-crosshair-h,
+#app[data-level-mode="horizontal"] .grid-line-h {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--hud-glow);
+}
+#app[data-level-mode="vertical"] .level-crosshair-v,
+#app[data-level-mode="vertical"] .grid-line-v {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--hud-glow);
+}
+#app[data-level-mode="horizontal"] .gauge-tick-e,
+#app[data-level-mode="horizontal"] .gauge-tick-w,
+#app[data-level-mode="vertical"] .gauge-tick-n,
+#app[data-level-mode="vertical"] .gauge-tick-s {
+    box-shadow: 0 0 8px var(--hud-glow);
+}
+
+/* Mode-switch moment: active axis (or whole shape in plumb) flashes green
+   instead of the usual accent color, in sync with the text flash above. */
+#app.mode-switching[data-level-mode="horizontal"] .level-crosshair-h,
+#app.mode-switching[data-level-mode="horizontal"] .grid-line-h,
+#app.mode-switching[data-level-mode="vertical"] .level-crosshair-v,
+#app.mode-switching[data-level-mode="vertical"] .grid-line-v {
+    background: #4aff7a;
+    box-shadow: 0 0 10px rgba(74, 255, 122, 0.8);
+}
+#app.mode-switching[data-level-mode="horizontal"] .gauge-tick-e,
+#app.mode-switching[data-level-mode="horizontal"] .gauge-tick-w,
+#app.mode-switching[data-level-mode="vertical"] .gauge-tick-n,
+#app.mode-switching[data-level-mode="vertical"] .gauge-tick-s {
+    background: #4aff7a;
+    box-shadow: 0 0 10px rgba(74, 255, 122, 0.8);
+}
+#app.mode-switching[data-level-mode="plumb"] .level-ring,
+#app.mode-switching[data-level-mode="plumb"] .grid-box,
+#app.mode-switching[data-level-mode="plumb"] .gauge-face {
+    box-shadow: 0 0 0 2px #4aff7a, 0 0 18px rgba(74, 255, 122, 0.6);
+}
+
 /* Bubble */
 .level-ring {
     width: 108px;
