@@ -35,7 +35,6 @@
   var soundOn = true;
   var vibOn = true;
   var levelMode = 'plumb';
-  var standingMode = 'horizontal';
   var lastProximity = -1;
   var currentProximity = 0;
   var currentOnLevel = false;
@@ -60,7 +59,7 @@
 
   function savePrefs() {
     storageSet(STORAGE_KEY_PREFS, btoa(JSON.stringify({
-      vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn, standingMode: standingMode
+      vizIndex: vizIndex, mode: mode, soundOn: soundOn, vibOn: vibOn
     })));
   }
 
@@ -73,7 +72,6 @@
         if (prefs.mode === 'light' || prefs.mode === 'dark') mode = prefs.mode;
         if (typeof prefs.soundOn === 'boolean') soundOn = prefs.soundOn;
         if (typeof prefs.vibOn === 'boolean') vibOn = prefs.vibOn;
-        if (prefs.standingMode === 'horizontal' || prefs.standingMode === 'vertical') standingMode = prefs.standingMode;
       } catch (e) {}
     });
   }
@@ -90,9 +88,9 @@
     savePrefs();
   }
 
-  // ---- Level mode: plumb (flat, auto-detected) vs horizontal/vertical
-  // (standing on an edge, picked with PTT click) ----
-  var MODE_FLASH_LABELS = { plumb: 'Plumb', horizontal: 'Horizontal', vertical: 'Vertical' };
+  // ---- Level mode: plumb (flat) vs horizontal (standing on an edge) —
+  // both fully auto-detected from tiltZ, no manual switching needed. ----
+  var MODE_FLASH_LABELS = { plumb: 'Plumb', horizontal: 'Horizontal' };
   var MODE_FLASH_MS = 650;
   var modeFlashTimer = null;
 
@@ -120,18 +118,12 @@
   }
 
   function detectLevelMode() {
-    var next = Math.abs(rawZ) >= FLAT_Z_THRESHOLD ? 'plumb' : standingMode;
+    var next = Math.abs(rawZ) >= FLAT_Z_THRESHOLD ? 'plumb' : 'horizontal';
     if (next !== levelMode) {
       levelMode = next;
       applyLevelMode();
       flashModeSwitch();
     }
-  }
-
-  function toggleStandingMode() {
-    standingMode = standingMode === 'horizontal' ? 'vertical' : 'horizontal';
-    savePrefs();
-    render(); // render() calls detectLevelMode() internally, which flashes if the mode actually changed
   }
 
   function applySignalToggles() {
@@ -226,16 +218,13 @@
   function render() {
     detectLevelMode();
 
-    // Plumb (flat) reads both axes. Horizontal/vertical (standing on an edge)
-    // are single-axis readings — the other axis is pinned to 0 rather than
-    // picking up a stale calibration offset from a different orientation.
+    // Plumb (flat) reads both axes. Horizontal (standing on an edge) is a
+    // single-axis reading — Y is pinned to 0 rather than picking up a stale
+    // calibration offset from a different orientation.
     var adjX, adjY;
     if (levelMode === 'horizontal') {
       adjX = clamp(rawX + calX, -1, 1);
       adjY = 0;
-    } else if (levelMode === 'vertical') {
-      adjX = 0;
-      adjY = clamp(rawY + calY, -1, 1);
     } else {
       adjX = clamp(rawX + calX, -1, 1);
       adjY = clamp(rawY + calY, -1, 1);
@@ -306,7 +295,6 @@
   // ---- Hardware event wiring ----
   window.addEventListener('scrollUp', function () { cycleViz(-1); });
   window.addEventListener('scrollDown', function () { cycleViz(1); });
-  window.addEventListener('sideClick', toggleStandingMode);
   window.addEventListener('longPressStart', autoZero);
 
   var suppressNextClick = false;
@@ -360,7 +348,7 @@
   }
 
   function startSimFallback() {
-    hint.innerHTML = 'SIMULATED &middot; drag=tilt &middot; F=flat/stand &middot; C=PTT click &middot; R=PTT hold';
+    hint.innerHTML = 'SIMULATED &middot; drag=tilt &middot; F=flat/stand &middot; R=PTT hold';
 
     var dragging = false;
 
@@ -401,7 +389,6 @@
       if (e.key === 'm' || e.key === 'M') toggleMode();
       if (e.key === 's' || e.key === 'S') toggleSound();
       if (e.key === 'b' || e.key === 'B') toggleVib();
-      if (e.key === 'c' || e.key === 'C') window.dispatchEvent(new Event('sideClick'));
       if (e.key === 'r' || e.key === 'R') window.dispatchEvent(new Event('longPressStart'));
       if (e.key === 'f' || e.key === 'F') {
         rawZ = Math.abs(rawZ) >= FLAT_Z_THRESHOLD ? 0 : 1;

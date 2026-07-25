@@ -186,8 +186,8 @@ main {
     100% { opacity: 0; }
 }
 
-/* Single-axis modes (standing on an edge) strongly dim the crosshair/ticks on
-   the axis that isn't being measured, and light up the active axis with an
+/* Horizontal mode (standing on an edge) strongly dims the crosshair/ticks on
+   the axis that isn't being measured, and lights up the active axis with an
    accent glow, so the reticle itself shows which way the level is reading. */
 #app[data-level-mode="horizontal"] .level-crosshair-v,
 #app[data-level-mode="horizontal"] .grid-line-v,
@@ -195,42 +195,25 @@ main {
 #app[data-level-mode="horizontal"] .gauge-tick-s {
     opacity: 0.08;
 }
-#app[data-level-mode="vertical"] .level-crosshair-h,
-#app[data-level-mode="vertical"] .grid-line-h,
-#app[data-level-mode="vertical"] .gauge-tick-e,
-#app[data-level-mode="vertical"] .gauge-tick-w {
-    opacity: 0.08;
-}
 #app[data-level-mode="horizontal"] .level-crosshair-h,
 #app[data-level-mode="horizontal"] .grid-line-h {
     background: var(--accent);
     box-shadow: 0 0 6px var(--hud-glow);
 }
-#app[data-level-mode="vertical"] .level-crosshair-v,
-#app[data-level-mode="vertical"] .grid-line-v {
-    background: var(--accent);
-    box-shadow: 0 0 6px var(--hud-glow);
-}
 #app[data-level-mode="horizontal"] .gauge-tick-e,
-#app[data-level-mode="horizontal"] .gauge-tick-w,
-#app[data-level-mode="vertical"] .gauge-tick-n,
-#app[data-level-mode="vertical"] .gauge-tick-s {
+#app[data-level-mode="horizontal"] .gauge-tick-w {
     box-shadow: 0 0 8px var(--hud-glow);
 }
 
 /* Mode-switch moment: active axis (or whole shape in plumb) flashes green
    instead of the usual accent color, in sync with the text flash above. */
 #app.mode-switching[data-level-mode="horizontal"] .level-crosshair-h,
-#app.mode-switching[data-level-mode="horizontal"] .grid-line-h,
-#app.mode-switching[data-level-mode="vertical"] .level-crosshair-v,
-#app.mode-switching[data-level-mode="vertical"] .grid-line-v {
+#app.mode-switching[data-level-mode="horizontal"] .grid-line-h {
     background: #4aff7a;
     box-shadow: 0 0 10px rgba(74, 255, 122, 0.8);
 }
 #app.mode-switching[data-level-mode="horizontal"] .gauge-tick-e,
-#app.mode-switching[data-level-mode="horizontal"] .gauge-tick-w,
-#app.mode-switching[data-level-mode="vertical"] .gauge-tick-n,
-#app.mode-switching[data-level-mode="vertical"] .gauge-tick-s {
+#app.mode-switching[data-level-mode="horizontal"] .gauge-tick-w {
     background: #4aff7a;
     box-shadow: 0 0 10px rgba(74, 255, 122, 0.8);
 }
